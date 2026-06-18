@@ -2,28 +2,30 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3D 流浪刷子 - 解压触控</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>3D 流浪刷子 - 十指高阶宇宙版</title>
     <style>
-        /* 基础重置 */
+        /* 基础重置与防触碰默认行为 */
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #0f0f0f;
+            background-color: #050505;
             color: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            touch-action: none; /* 防止移动端拖拽刷新和滚动 */
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         /* 静态流体背景容器，放置于 body 最顶部 */
         .bg-circle {
             position: absolute;
             border-radius: 50%;
-            filter: blur(80px);
+            filter: blur(90px);
             z-index: -1;
-            opacity: 0.75;
-            animation: breathe 10s infinite alternate ease-in-out;
+            opacity: 0.8;
+            animation: breathe 12s infinite alternate ease-in-out;
         }
 
         /* 严格遵守的 5 个绝对定位圆角与颜色尺寸设定 */
@@ -35,8 +37,9 @@
             top: 50%; left: 50%; 
             transform: translate(-50%, -50%); 
             background: #FFB300; /* 橙黄 */
-            width: max(50vw, 50vh); 
-            height: max(50vw, 50vh); 
+            width: max(55vw, 55vh); 
+            height: max(55vw, 55vh); 
+            animation-delay: -5s;
         } 
 
         /* 液体毛玻璃主题主容器 */
@@ -46,195 +49,395 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            backdrop-filter: blur(30px) saturate(150%);
-            -webkit-backdrop-filter: blur(30px) saturate(150%);
-            background: rgba(20, 20, 20, 0.2);
+            backdrop-filter: blur(35px) saturate(160%);
+            -webkit-backdrop-filter: blur(35px) saturate(160%);
+            background: rgba(15, 15, 15, 0.25);
             display: flex;
             justify-content: center;
             align-items: center;
         }
 
-        /* UI 提示层 */
+        /* UI 与参数监控层 */
         #ui-layer {
             position: absolute;
             pointer-events: none;
             text-align: center;
-            transition: opacity 0.6s ease;
+            transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 10;
-            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
         }
 
         #ui-layer h1 {
-            font-weight: 300;
-            letter-spacing: 4px;
-            font-size: 2rem;
+            font-weight: 200;
+            letter-spacing: 6px;
+            font-size: 2.5rem;
             margin-bottom: 10px;
         }
 
         #ui-layer p {
-            font-size: 1rem;
-            opacity: 0.8;
-            letter-spacing: 2px;
-            animation: pulse 2s infinite;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            letter-spacing: 3px;
+            animation: pulse 2.5s infinite;
         }
 
-        /* 简单的动画效果 */
+        #hud {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
         @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.8; }
+            0%, 100% { transform: scale(1); opacity: 0.6; }
             50% { transform: scale(1.05); opacity: 1; }
         }
         
         @keyframes breathe {
-            0% { transform: scale(1); }
-            100% { transform: scale(1.1); }
+            0% { transform: scale(0.95) translate(0, 0); }
+            100% { transform: scale(1.1) translate(2vw, 2vh); }
         }
     </style>
 </head>
 <body>
 
+    <!-- 液体背景 -->
     <div class="bg-circle circle-1"></div>
     <div class="bg-circle circle-2"></div>
     <div class="bg-circle circle-3"></div>
     <div class="bg-circle circle-4"></div>
     <div class="bg-circle circle-5"></div>
 
+    <!-- 毛玻璃容器 -->
     <div class="glass-container" id="container">
         <div id="ui-layer">
-            <h1>流浪刷子</h1>
-            <p>长按屏幕 开始解压</p>
+            <h1>维度刷子</h1>
+            <p>尝试 1 到 10 根手指，感受不同间距与速度</p>
+        </div>
+        <div id="hud">
+            <span id="hud-fingers">维度: 0</span>
+            <span id="hud-spread">引力场: 0%</span>
         </div>
     </div>
 
+    <!-- 引入 Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // --- 1. Three.js 基础设置 ---
         const container = document.getElementById('container');
         const uiLayer = document.getElementById('ui-layer');
+        const hud = document.getElementById('hud');
+        const hudFingers = document.getElementById('hud-fingers');
+        const hudSpread = document.getElementById('hud-spread');
         
+        // --- 1. 场景初始化 ---
         const scene = new THREE.Scene();
-        // 设置背景透明以透出底部的毛玻璃与液体色彩
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 25;
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 40;
 
-        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 优化移动端性能
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
-        // --- 2. 创建 3D 流浪刷子 (实例化网格提升性能) ---
-        const trailLength = 600; // 刷子的长度/粒子数
-        const geometry = new THREE.IcosahedronGeometry(0.6, 2); // 圆滑的多面体作为刷毛
+        // --- 2. 高阶粒子系统 (支持最多10条独立轨迹) ---
+        const MAX_FINGERS = 10;
+        const TRAIL_LENGTH = 150; // 每根手指的尾迹长度
+        const totalParticles = MAX_FINGERS * TRAIL_LENGTH;
+        
+        const geometry = new THREE.OctahedronGeometry(0.7, 1);
         const material = new THREE.MeshPhysicalMaterial({
             color: 0xffffff,
-            roughness: 0.1,
-            metalness: 0.5,
-            transmission: 0.5, // 玻璃质感
-            thickness: 1.0
+            roughness: 0.05,
+            metalness: 0.8,
+            clearcoat: 1.0,
+            transmission: 0.6,
+            thickness: 1.5
         });
 
-        const instancedMesh = new THREE.InstancedMesh(geometry, material, trailLength);
+        const instancedMesh = new THREE.InstancedMesh(geometry, material, totalParticles);
+        instancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         scene.add(instancedMesh);
 
-        // 轨迹状态存储
-        let trail = new Array(trailLength).fill(null).map(() => new THREE.Vector3(0, 0, 0));
+        // 初始化数据结构
+        const trails = Array.from({ length: MAX_FINGERS }, () => 
+            Array.from({ length: TRAIL_LENGTH }, () => new THREE.Vector3(0, 0, 0))
+        );
         const dummy = new THREE.Object3D();
         const colorObj = new THREE.Color();
 
-        // 添加柔和的光照
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-        scene.add(ambientLight);
-        
-        const pointLight = new THREE.PointLight(0xffffff, 1.2);
-        pointLight.position.set(15, 15, 15);
+        // 光照
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(20, 30, 20);
+        scene.add(dirLight);
+        const pointLight = new THREE.PointLight(0xffaaff, 2, 50);
         scene.add(pointLight);
 
-        // --- 3. 交互与震动逻辑 ---
-        let isTouching = false;
-        let time = 0;
-        let vibrateInterval;
+        // --- 3. 触控参数提取引擎 ---
+        let touchData = {
+            count: 0,
+            centerX: 0,
+            centerY: 0,
+            spread: 0,       // 手指平均间距 (0-1)
+            speed: 0,        // 运动速度
+            lastCenterX: 0,
+            lastCenterY: 0
+        };
 
-        function startInteraction(e) {
-            if (e.type === 'touchstart') e.preventDefault();
-            if (isTouching) return;
+        let globalTime = 0;
+        let isActive = false;
+        let vibeTimer = null;
+
+        function updateTouchData(touches) {
+            touchData.count = touches.length;
+            if (touchData.count === 0) return;
+
+            let sumX = 0, sumY = 0;
+            // 计算几何中心
+            for (let i = 0; i < touches.length; i++) {
+                sumX += touches[i].clientX;
+                sumY += touches[i].clientY;
+            }
+            const cx = sumX / touches.length;
+            const cy = sumY / touches.length;
+
+            // 归一化中心坐标 (-1 到 1)
+            const normX = (cx / window.innerWidth) * 2 - 1;
+            const normY = -(cy / window.innerHeight) * 2 + 1;
+
+            // 计算滑动速度
+            const dx = normX - touchData.lastCenterX;
+            const dy = normY - touchData.lastCenterY;
+            touchData.speed = Math.sqrt(dx*dx + dy*dy);
             
-            isTouching = true;
-            uiLayer.style.opacity = '0'; // 隐藏 UI
-            
-            // 初始触觉反馈
-            if (navigator.vibrate) navigator.vibrate(20);
-            
-            // 连续短促震动模拟“刷子摩擦”感
-            vibrateInterval = setInterval(() => {
-                if (navigator.vibrate) navigator.vibrate(10);
-            }, 80);
+            touchData.lastCenterX = touchData.centerX = normX;
+            touchData.lastCenterY = touchData.centerY = normY;
+
+            // 计算平均间距 (Spread)
+            if (touchData.count > 1) {
+                let distSum = 0;
+                for (let i = 0; i < touches.length; i++) {
+                    const tdx = touches[i].clientX - cx;
+                    const tdy = touches[i].clientY - cy;
+                    distSum += Math.sqrt(tdx*tdx + tdy*tdy);
+                }
+                const avgDist = distSum / touches.length;
+                const maxDist = Math.min(window.innerWidth, window.innerHeight) / 2;
+                touchData.spread = Math.min(avgDist / maxDist, 1.0); // 0 到 1
+            } else {
+                touchData.spread = 0.5; // 单指默认间距参数
+            }
+
+            // 更新 HUD
+            hudFingers.innerText = `维度: ${touchData.count}`;
+            hudSpread.innerText = `引力场: ${Math.round(touchData.spread * 100)}%`;
         }
 
-        function stopInteraction() {
-            isTouching = false;
-            uiLayer.style.opacity = '1'; // 恢复 UI
-            clearInterval(vibrateInterval);
+        // --- 4. 触觉震动引擎 ---
+        function triggerVibration() {
+            if (!navigator.vibrate) return;
+            const { count, speed, spread } = touchData;
+            
+            if (count === 0) {
+                clearInterval(vibeTimer);
+                vibeTimer = null;
+                return;
+            }
+
+            if (!vibeTimer) {
+                vibeTimer = setInterval(() => {
+                    // 动态计算震动时长与间隔
+                    let intensity = 5;
+                    if (count === 1) intensity = 5 + speed * 100;
+                    else if (count === 2) intensity = 10 + spread * 20;
+                    else if (count >= 3 && count <= 5) intensity = 15 + speed * 150;
+                    else intensity = 25; // 大爆炸级别
+
+                    intensity = Math.min(intensity, 40);
+                    navigator.vibrate(intensity);
+                }, 1000 / (10 + count * 2)); // 手指越多，震频越快
+            }
         }
 
-        // 绑定事件 (兼容手机触摸与电脑鼠标)
-        window.addEventListener('mousedown', startInteraction);
-        window.addEventListener('touchstart', startInteraction, { passive: false });
-        window.addEventListener('mouseup', stopInteraction);
-        window.addEventListener('touchend', stopInteraction);
-        window.addEventListener('mouseleave', stopInteraction);
+        // 事件监听
+        function handleInteraction(e) {
+            e.preventDefault();
+            if (e.touches) {
+                updateTouchData(e.touches);
+            } else {
+                // 兼容鼠标
+                const isDown = e.type === 'mousedown' || (e.buttons === 1 && e.type === 'mousemove');
+                if (isDown) {
+                    updateTouchData([{ clientX: e.clientX, clientY: e.clientY }]);
+                } else {
+                    touchData.count = 0;
+                }
+            }
 
-        // 窗口缩放适配
+            if (touchData.count > 0 && !isActive) {
+                isActive = true;
+                uiLayer.style.opacity = '0';
+                hud.style.opacity = '1';
+                triggerVibration();
+            } else if (touchData.count === 0 && isActive) {
+                isActive = false;
+                uiLayer.style.opacity = '1';
+                hud.style.opacity = '0';
+                triggerVibration(); // 触发停止
+            }
+        }
+
+        window.addEventListener('touchstart', handleInteraction, { passive: false });
+        window.addEventListener('touchmove', handleInteraction, { passive: false });
+        window.addEventListener('touchend', handleInteraction);
+        window.addEventListener('touchcancel', handleInteraction);
+        window.addEventListener('mousedown', handleInteraction);
+        window.addEventListener('mousemove', handleInteraction);
+        window.addEventListener('mouseup', handleInteraction);
+
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // --- 4. 动画循环 ---
+        // --- 5. 核心数学形态引擎 (1-10指的不同特效) ---
+        function calculatePosition(fingerIndex, totalFingers, t, cx, cy, spread) {
+            const pos = new THREE.Vector3();
+            // 基础偏移，跟随触控中心
+            const baseCamX = cx * 20;
+            const baseCamY = cy * 20;
+            
+            // 指间距带来的扩张系数
+            const scale = 5 + spread * 15;
+            const angle = (fingerIndex / totalFingers) * Math.PI * 2;
+
+            switch(totalFingers) {
+                case 1: // 单指：莫比乌斯 / 李萨如游走
+                    pos.x = baseCamX + Math.sin(t * 1.5) * scale;
+                    pos.y = baseCamY + Math.cos(t * 2.2) * scale * 0.8;
+                    pos.z = Math.sin(t * 3.1) * scale * 0.5;
+                    break;
+                case 2: // 双指：量子纠缠双螺旋
+                    const phase2 = t * 2 + angle;
+                    pos.x = baseCamX + Math.cos(phase2) * scale * 0.5;
+                    pos.y = baseCamY + t % 20 - 10; // 模拟上升/下降
+                    pos.z = Math.sin(phase2) * scale * 0.5;
+                    // 让整体沿轨迹扭曲
+                    const twist = Math.sin(t);
+                    pos.applyAxisAngle(new THREE.Vector3(1,0,0), twist);
+                    break;
+                case 3: // 三指：曼陀罗 / 玫瑰线
+                    const k = 4; // 花瓣数参数
+                    const r3 = scale * Math.cos(k * t * 0.5);
+                    pos.x = baseCamX + r3 * Math.cos(t + angle);
+                    pos.y = baseCamY + r3 * Math.sin(t + angle);
+                    pos.z = Math.sin(t * 4 + angle) * spread * 10;
+                    break;
+                case 4: // 四指：引力波折叠
+                    pos.x = baseCamX + Math.sin(t + angle) * scale;
+                    pos.y = baseCamY + Math.cos(t * 1.5 + angle) * scale;
+                    pos.z = Math.tan(Math.sin(t * 0.5 + angle)) * scale * 0.5;
+                    break;
+                case 5: // 五指：星系旋涡
+                    const r5 = (t % 10) / 10 * scale * 2;
+                    const theta5 = t * 3 + angle;
+                    pos.x = baseCamX + r5 * Math.cos(theta5);
+                    pos.y = baseCamY + r5 * Math.sin(theta5);
+                    pos.z = (5 - r5) * spread * 5; 
+                    break;
+                default: // 6-10指：高维粒子风暴 / 大爆炸
+                    const chaos = Math.sin(t * 10 * fingerIndex);
+                    pos.x = baseCamX + Math.cos(t * 2 + angle) * scale * (1 + chaos * 0.2);
+                    pos.y = baseCamY + Math.sin(t * 2.3 + angle) * scale * (1 - chaos * 0.2);
+                    pos.z = Math.sin(t * 3.5 + angle) * scale * 2 * (fingerIndex % 2 === 0 ? 1 : -1);
+                    break;
+            }
+            return pos;
+        }
+
+        // --- 6. 动画渲染循环 ---
+        let rotSpeedX = 0, rotSpeedY = 0;
+
         function animate() {
             requestAnimationFrame(animate);
 
-            if (isTouching) {
-                // 当按住时，时间流逝，刷子移动
-                time += 0.025;
+            if (isActive) {
+                // 速度决定时间的流逝快慢
+                const timeStep = 0.02 + touchData.speed * 0.5;
+                globalTime += timeStep;
 
-                // 使用李萨如曲线 (Lissajous curve) 生成令人极度舒适的数学无限循环轨迹
-                const x = Math.sin(time * 1.3) * 10 + Math.cos(time * 2.1) * 4;
-                const y = Math.cos(time * 1.7) * 8 + Math.sin(time * 0.9) * 5;
-                const z = Math.sin(time * 2.5) * 6;
+                // 相机产生轻微的景深或视差感
+                camera.position.z += ((40 - touchData.spread * 15) - camera.position.z) * 0.05;
 
-                // 更新轨迹：移除最旧的点，加入新的刷头点
-                trail.pop();
-                trail.unshift(new THREE.Vector3(x, y, z));
+                // 更新所有活跃手指的轨迹
+                const activeCount = touchData.count;
+                for (let f = 0; f < activeCount; f++) {
+                    const newPos = calculatePosition(
+                        f, activeCount, globalTime, 
+                        touchData.centerX, touchData.centerY, touchData.spread
+                    );
+                    
+                    // 阵列向后位移
+                    trails[f].pop();
+                    trails[f].unshift(newPos);
+                }
                 
-                // 视角跟随微调，增加沉浸感
-                camera.position.x += (x * 0.2 - camera.position.x) * 0.05;
-                camera.position.y += (y * 0.2 - camera.position.y) * 0.05;
-                camera.lookAt(0, 0, 0);
+                // 光源跟随中心
+                pointLight.position.set(touchData.centerX * 20, touchData.centerY * 20, 10);
             } else {
-                // 松开时，场景缓慢自转，产生悬停的优美感
-                scene.rotation.y += 0.003;
+                // 停止触摸时的优美悬停自转
+                scene.rotation.y += 0.002;
                 scene.rotation.x += 0.001;
+                globalTime += 0.005; // 保持微小的流逝让悬停不僵硬
             }
 
-            // 渲染实例网格 (计算每个粒子的位置、大小和颜色)
-            for (let i = 0; i < trailLength; i++) {
-                const pos = trail[i];
-                dummy.position.copy(pos);
-                
-                // 越靠近尾部越细，形成画笔拖尾感
-                const scale = Math.max(0.001, 1 - Math.pow(i / trailLength, 1.5));
-                dummy.scale.set(scale, scale, scale);
+            // 构建 InstancedMesh 矩阵
+            let idx = 0;
+            // 为了隐藏未激活的手指轨迹，我们将 activeCount 作为渲染上限，未激活的缩放到0
+            const renderCount = isActive ? touchData.count : MAX_FINGERS; 
 
-                // 让粒子有轻微的自转
-                dummy.rotation.x = time + i * 0.1;
-                dummy.rotation.y = time + i * 0.05;
+            for (let f = 0; f < MAX_FINGERS; f++) {
+                for (let i = 0; i < TRAIL_LENGTH; i++) {
+                    if (f < renderCount) {
+                        const pos = trails[f][i];
+                        dummy.position.copy(pos);
+                        
+                        // 轨迹尾部变细变小
+                        let scale = Math.max(0.0001, 1 - Math.pow(i / TRAIL_LENGTH, 1.2));
+                        // 悬停时整体平滑消散
+                        if (!isActive) scale *= 0.8;
+                        
+                        dummy.scale.set(scale, scale, scale);
+                        
+                        // 粒子自转
+                        dummy.rotation.x = globalTime + i * 0.1;
+                        dummy.rotation.y = globalTime + f * 0.5;
 
-                dummy.updateMatrix();
-                instancedMesh.setMatrixAt(i, dummy.matrix);
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(idx, dummy.matrix);
 
-                // 根据时间和位置进行动态流光变色
-                colorObj.setHSL((time * 0.15 + i * 0.001) % 1, 0.8, 0.6);
-                instancedMesh.setColorAt(i, colorObj);
+                        // 动态流光色彩计算 (结合轨迹深度与时间)
+                        const hue = (globalTime * 0.05 + f * (1/renderCount) + i * 0.002) % 1;
+                        const lightness = isActive ? 0.6 + scale * 0.2 : 0.4;
+                        colorObj.setHSL(hue, 0.9, lightness);
+                        instancedMesh.setColorAt(idx, colorObj);
+                    } else {
+                        // 隐藏不需要的粒子
+                        dummy.scale.set(0,0,0);
+                        dummy.updateMatrix();
+                        instancedMesh.setMatrixAt(idx, dummy.matrix);
+                    }
+                    idx++;
+                }
             }
 
             instancedMesh.instanceMatrix.needsUpdate = true;
@@ -243,7 +446,6 @@
             renderer.render(scene, camera);
         }
 
-        // 启动动画
         animate();
     </script>
 </body>
